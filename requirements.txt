@@ -1,0 +1,7 @@
+pymysql
+dbutils
+fastapi
+uvicorn
+pydantic
+python-multipart
+cryptography
