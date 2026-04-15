@@ -9,8 +9,7 @@ import {
   BrainCircuit,
   CloudSun,
   Sun,
-  History,
-  Settings
+  History
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -57,13 +56,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      <div className="mt-auto pt-6 border-t border-white/5 px-2">
-        <button className="flex items-center gap-3 text-slate-400 hover:text-white w-full transition-colors">
-          <Settings className="w-5 h-5" />
-          <span className="font-medium">Settings</span>
-        </button>
-      </div>
     </aside>
   );
 }

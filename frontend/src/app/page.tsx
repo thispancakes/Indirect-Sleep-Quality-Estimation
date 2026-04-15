@@ -57,10 +57,6 @@ export default function Dashboard() {
           <h1 className="text-4xl font-bold text-white mb-2">Sleep Overview</h1>
           <p className="text-slate-400">Welcome back! Here's your sleep analysis for this week.</p>
         </div>
-        <div className="flex gap-2 bg-white/5 p-1 rounded-2xl border border-white/10">
-          <button className="px-4 py-2 bg-accent-purple text-white rounded-xl text-sm font-medium shadow-lg shadow-purple-500/20">7 Days</button>
-          <button className="px-4 py-2 text-slate-400 hover:text-white rounded-xl text-sm font-medium transition-colors">30 Days</button>
-        </div>
       </header>
 
       {/* Hero Stats */}

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Somnus | Sleep Quality Analytics",
+  title: "Sleep Quality Analytics",
   description: "Indirect Sleep Quality Estimation Using Environmental Disturbance Sensors",
 };
 
