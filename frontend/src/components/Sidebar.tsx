@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Overview", href: "/" },
+  { icon: LayoutDashboard, label: "Overview", href: "/dashboard" },
   { icon: Moon, label: "Night Analysis", href: "/analysis" },
   { icon: BrainCircuit, label: "Mood vs Sleep", href: "/mood" },
   { icon: CloudSun, label: "Environment", href: "/environment" },
@@ -24,6 +24,8 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+
+  if (pathname === "/") return null;
 
   return (
     <aside className="w-64 glass h-[calc(100vh-2rem)] sticky top-4 left-4 m-4 rounded-3xl p-6 flex flex-col hidden lg:flex">
