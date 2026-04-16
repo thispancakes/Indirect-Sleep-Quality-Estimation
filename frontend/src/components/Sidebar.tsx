@@ -33,7 +33,7 @@ export function Sidebar() {
         <div className="p-2 bg-accent-purple/20 rounded-xl">
           <Moon className="w-6 h-6 text-accent-purple" />
         </div>
-        <span className="font-bold text-xl tracking-tight text-white">Sleepy Analytics</span>
+        <span className="font-bold text-xl tracking-tight text-white">Sleep Analytics</span>
       </div>
 
       <nav className="flex-1 space-y-2">

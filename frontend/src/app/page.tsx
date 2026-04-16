@@ -30,7 +30,7 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6 }}
         >
-          Somnus Analytics
+          Sleep Analytics
         </motion.h1>
 
         <motion.p 

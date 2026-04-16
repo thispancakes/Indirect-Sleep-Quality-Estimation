@@ -1,4 +1,4 @@
-# 🌙 Somnus: Indirect Sleep Quality Estimation
+# 🌙 Indirect Sleep Quality Estimation
 
 A professional data analytics web application developed for estimating sleep quality using environmental disturbance sensors (Noise, Vibration, Light, PM2.5). This system integrates real-world feedback from Google Forms with high-frequency sensor data to provide actionable insights into your rest.
 
@@ -87,7 +87,7 @@ The dashboard will be available at [http://localhost:3000](http://localhost:3000
 ---
 
 ## 🧪 Machine Learning Pipeline
-Unlike traditional mock dashboards, Somnus calculates **real** metrics:
+Unlike traditional mock dashboards, this system calculates **real** metrics:
 1.  It joins your `sensor_readings` with your `sleep_logs` based on the exact bedtime/waketime window.
 2.  It trains three regressors (KNN, Decision Tree, XGBoost) to predict your `Mood Score`.
 3.  The **Model Comparison** page shows the actual Error (MAE/RMSE) of these models on your data.

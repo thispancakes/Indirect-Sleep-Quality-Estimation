@@ -82,7 +82,7 @@ async def fetch_moon():
     today = datetime.now().strftime("%Y-%m-%d")
     url = f"https://api.met.no/weatherapi/sunrise/3.0/moon?lat={LAT}&lon={LON}&date={today}"
     # MET Norway requires a User-Agent
-    headers = {"User-Agent": "SomnusSleepTracker/1.0 (contact: info@example.com)"}
+    headers = {"User-Agent": "SleepQualityTracker/1.0 (contact: info@example.com)"}
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, headers=headers)

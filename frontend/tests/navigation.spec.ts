@@ -31,7 +31,7 @@ test.describe('Navigation', () => {
 
   test('should return to Overview when clicking sidebar logo', async ({ page }) => {
     await page.click('text=Night Analysis');
-    await page.click('text=Somnus Analytics');
+    await page.click('text=Sleep Analytics');
     await expect(page).toHaveURL('/');
     await expect(page.locator('h1')).toContainText('Sleep Overview');
   });
