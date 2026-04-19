@@ -25,6 +25,7 @@ import { motion } from "framer-motion";
 
 export default function MoodVSleep() {
   const [data, setData] = useState<any[]>([]);
+  const [correlation, setCorrelation] = useState<number>(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -32,8 +33,9 @@ export default function MoodVSleep() {
         const response = await fetch("http://localhost:8001/mood-correlation");
         if (response.ok) {
           const json = await response.json();
+          setCorrelation(json.correlation);
           // Map backend fields to chart x,y
-          const mapped = json.map((d: any) => ({
+          const mapped = json.data.map((d: any) => ({
             x: d.sleep_quality,
             y: d.mood_score,
             name: d.date
@@ -56,24 +58,43 @@ export default function MoodVSleep() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Insight Card */}
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-1">
-          <GlassCard glow="purple" className="h-full">
+          <GlassCard glow={correlation > 0.6 ? "purple" : "none"} className="h-full">
             <div className="p-4 bg-accent-purple/20 rounded-3xl w-fit mb-6">
               <Brain className="w-8 h-8 text-accent-purple" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-4">Positive Correlation</h2>
-            <div className="text-5xl font-extrabold text-white mb-2">0.82</div>
+            <h2 className="text-2xl font-bold text-white mb-4">
+              {Math.abs(correlation) > 0.6 ? (correlation > 0 ? "Strong Positive" : "Strong Negative") : 
+               Math.abs(correlation) > 0.3 ? (correlation > 0 ? "Moderate Positive" : "Moderate Negative") : 
+               "Weak Correlation"}
+            </h2>
+            <div className="text-5xl font-extrabold text-white mb-2">{correlation}</div>
             <p className="text-slate-400 leading-relaxed mb-6">
-              Your sleep quality has a <strong>strong positive correlation</strong> with your mood. 
-              Higher sleep scores consistently lead to improved mood ratings.
+              {correlation > 0.3 
+                ? "There's a positive trend: better sleep quality is linked to a brighter mood."
+                : correlation < -0.3
+                ? "There's an inverse trend: your recorded mood drops when sleep quality scores are higher."
+                : "Your mood seems relatively independent of sleep quality scores based on current real-world data."}
             </p>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5">
-                <Smile className="w-5 h-5 text-emerald-400" />
-                <span className="text-sm text-slate-300">Peak mood at 90+ score</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5">
-                <Frown className="w-5 h-5 text-rose-400" />
-                <span className="text-sm text-slate-300">Mood drops significantly below 70 score</span>
+            <div className="space-y-4">
+              {correlation > 0 && (
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-400/10 border border-emerald-400/20">
+                  <Smile className="w-5 h-5 text-emerald-400" />
+                  <span className="text-xs text-emerald-400 font-medium lowercase">
+                    Positive: Higher quality = Better mood
+                  </span>
+                </div>
+              )}
+              {correlation < 0 && (
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-rose-400/10 border border-rose-400/20">
+                  <Frown className="w-5 h-5 text-rose-400" />
+                  <span className="text-xs text-rose-400 font-medium lowercase">
+                    Negative: Higher quality = Lower mood
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5 opacity-60">
+                <Info className="w-5 h-5 text-slate-400" />
+                <span className="text-xs text-slate-400">Pearson Coefficient (r) updated from logs</span>
               </div>
             </div>
           </GlassCard>

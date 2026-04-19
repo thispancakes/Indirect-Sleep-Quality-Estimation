@@ -6,7 +6,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 from math import log
 
-pool = get_db_pool(max_connections=2)
+pool = get_db_pool(max_connections=1)
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -89,6 +89,10 @@ class ExternalDataResponse(BaseModel):
     sun: Optional[ExternalSun]
     moon: Optional[ExternalMoon]
 
+class MoodCorrelationResponse(BaseModel):
+    correlation: float
+    data: List[MoodCorrelation]
+
 # Helper functions for real analytics logic
 def calculate_sleep_stats(date_str, cursor=None):
     """
@@ -144,10 +148,14 @@ def _perform_stats_query(cs, date_str):
         # Duration factor: Target 7-9 hours. -10 pts per hour deficit.
         dur_penalty = max(0, (7.0 - duration) * 12) if duration < 7.0 else 0
         
-        # light/pm/disturbance penalties
-        light_pen = min(25, (float(avg_light) / 1000) * 25)
-        pm_pen = min(15, (float(avg_pm25) / 50) * 15)
-        dist_pen = min(60, (float(noise) * 0.4) + (float(vib) * 2) + (float(peak) / 500) * 10)
+        # light/pm/disturbance penalties — Adjusted for better sensitivity
+        light_pen = min(20, (float(avg_light) / 1023) * 30) # Scale raw analog reading (0-1023)
+        pm_pen = min(20, (float(avg_pm25) / 100) * 20)      # More linear penalty up to 100 PM2.5
+        
+        # Disturbance: Noise and vibration sum can be high, so we use a gentler multiplier or log scale
+        # 0.1 for noise means 600 pulses = 60 penalty points.
+        dist_score = (float(noise) * 0.1) + (float(vib) * 0.5) + (float(peak) / 1000) * 15
+        dist_pen = min(70, dist_score)
 
         quality = 100 - dist_pen - light_pen - pm_pen - dur_penalty
         
@@ -232,30 +240,56 @@ def get_disturbance_timeline(date: str):
         humidity=round(float(hum or 0), 1),
     ) for t, n, v, l, pm25, pm10, hum in rows]
 
-@app.get("/mood-correlation", response_model=List[MoodCorrelation])
+@app.get("/mood-correlation", response_model=MoodCorrelationResponse)
 def get_mood_correlation():
     if not pool:
-        return []
+        return MoodCorrelationResponse(correlation=0, data=[])
 
     with pool.connection() as conn, conn.cursor() as cs:
-        # Join sleep_logs and mood_data (or just use sleep_logs if it has both)
         cs.execute("""
             SELECT date, duration, mood_score 
             FROM sleep_logs 
-            ORDER BY date DESC LIMIT 14
+            ORDER BY date DESC LIMIT 30
         """)
         rows = cs.fetchall()
         
-        data = []
+        raw_data = []
+        qualities = []
+        moods = []
+        
         for d, dur, mood in rows:
-            # Re-calculate quality for each date
             _, _, qual = calculate_sleep_stats(d.strftime("%Y-%m-%d"), cs)
-            data.append(MoodCorrelation(
+            m_score = mood or 0
+            raw_data.append(MoodCorrelation(
                 date=d.strftime("%Y-%m-%d"), 
                 sleep_quality=qual, 
-                mood_score=mood or 0
+                mood_score=m_score
             ))
-        return data
+            qualities.append(qual)
+            moods.append(float(m_score))
+        
+        # Calculate Pearson Correlation
+        correlation = 0.0
+        n = len(qualities)
+        if n >= 2:
+            try:
+                import numpy as np
+                correlation = float(np.corrcoef(qualities, moods)[0, 1])
+            except:
+                # Manual fallback if numpy fails
+                sum_x = sum(qualities)
+                sum_y = sum(moods)
+                sum_x_sq = sum(x**2 for x in qualities)
+                sum_y_sq = sum(y**2 for y in moods)
+                sum_xy = sum(x * y for x, y in zip(qualities, moods))
+                num = (n * sum_xy) - (sum_x * sum_y)
+                den = ((n * sum_x_sq - sum_x**2) * (n * sum_y_sq - sum_y**2))**0.5
+                correlation = num / den if den != 0 else 0.0
+
+        return MoodCorrelationResponse(
+            correlation=round(correlation, 2),
+            data=raw_data
+        )
 
 @app.get("/weekly-summary", response_model=WeeklySummary)
 def get_weekly_summary():

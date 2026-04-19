@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 _pool = None
 
-def get_db_pool(max_connections=2):
+def get_db_pool(max_connections=1):
     """
     Returns a shared database connection pool (Singleton).
     """
