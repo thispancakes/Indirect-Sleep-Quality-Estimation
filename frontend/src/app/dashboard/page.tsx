@@ -82,6 +82,12 @@ export default function Dashboard() {
               : "Loading sleep data…"}
           </p>
         </div>
+        {lastScore.date && (
+          <div className="text-right">
+            <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">Latest Entry</p>
+            <p className="text-sm text-slate-300 font-medium">{lastScore.date}</p>
+          </div>
+        )}
       </header>
 
       {/* Hero Stats */}
@@ -112,6 +118,9 @@ export default function Dashboard() {
                 <h2 className="text-5xl font-bold text-white">{lastScore.quality ?? "--"}</h2>
                 <span className="text-slate-500 font-medium">/ 100</span>
               </div>
+              {lastScore.date && (
+                <p className="text-xs text-slate-500 mt-1">Last Night · {lastScore.date}</p>
+              )}
             </div>
             <div className={`mt-4 pt-4 border-t border-white/5 flex items-center gap-2 text-sm ${
               ql.icon === "good" ? "text-emerald-400" : ql.icon === "warn" ? "text-amber-400" : "text-rose-400"
@@ -148,6 +157,9 @@ export default function Dashboard() {
                 <h2 className="text-5xl font-bold text-white">{lastScore.disturbance ?? "--"}</h2>
                 <span className="text-slate-500 font-medium">pts</span>
               </div>
+              {lastScore.date && (
+                <p className="text-xs text-slate-500 mt-1">Last Night · {lastScore.date}</p>
+              )}
             </div>
             <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-2 text-slate-400 text-sm">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -185,6 +197,9 @@ export default function Dashboard() {
                 <h2 className="text-5xl font-bold text-white">{lastScore.duration ?? "--"}</h2>
                 <span className="text-slate-500 font-medium">hrs</span>
               </div>
+              {lastScore.date && (
+                <p className="text-xs text-slate-500 mt-1">Last Night · {lastScore.date}</p>
+              )}
             </div>
             <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-2 text-slate-400 text-sm">
               {lastScore.duration >= 7
