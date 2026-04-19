@@ -159,6 +159,14 @@ npm run test:e2e
 ```
 
 Tests cover: page headings, metric card visibility, Recharts rendering, and navigation between all 5 routes.
+---
+### Database Schema
+Integrated data is stored across 10 tables on the Kasetsart University IoT host.
+
+**Host/PMA**: [https://iot.cpe.ku.ac.th/pma/](https://iot.cpe.ku.ac.th/pma/)
+
+![Database Schema](./DatabaseScemaDiagram.png)
+
 
 ---
 
