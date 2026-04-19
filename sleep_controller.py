@@ -1,23 +1,11 @@
-import pymysql
-from dbutils.pooled_db import PooledDB
+from db_manager import get_db_pool
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from external_services import sync_all_external_data
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
-import random
 
-try:
-    from config import DB_HOST, DB_USER, DB_PASSWD, DB_NAME
-    pool = PooledDB(creator=pymysql,
-                   host=DB_HOST,
-                   user=DB_USER,
-                   password=DB_PASSWD,
-                   database=DB_NAME,
-                   maxconnections=1,
-                   blocking=True)
-except ImportError:
-    pool = None
+pool = get_db_pool(max_connections=2)
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -47,6 +35,9 @@ class DisturbanceData(BaseModel):
     noise: int
     vibration: int
     light: int
+    pm25: float
+    pm10: float
+    humidity: float
 
 class MoodCorrelation(BaseModel):
     date: str
@@ -98,19 +89,21 @@ class ExternalDataResponse(BaseModel):
     moon: Optional[ExternalMoon]
 
 # Helper functions for real analytics logic
-def calculate_sleep_stats(date_str):
+def calculate_sleep_stats(date_str, cursor=None):
     """
     Real analytics logic to aggregate sensor data for a specific date.
     Queries sensor_readings and disturbance_data for the sleep window.
     """
     if not pool:
-        # Fallback to mock if pool not initialized
-        duration = random.uniform(6.0, 9.0)
-        disturbance = random.uniform(10.0, 40.0)
-        quality = max(0, 100 - (disturbance * 1.5) + (duration * 5) - 30)
-        return round(duration, 2), round(disturbance, 2), round(min(100, quality), 2)
+        return 0.0, 0.0, 0.0
 
+    if cursor:
+        return _perform_stats_query(cursor, date_str)
+    
     with pool.connection() as conn, conn.cursor() as cs:
+        return _perform_stats_query(cs, date_str)
+
+def _perform_stats_query(cs, date_str):
         # 1. Get sleep window from logs
         cs.execute("SELECT bedtime, wake_time, duration FROM sleep_logs WHERE date=%s", [date_str])
         log = cs.fetchone()
@@ -163,14 +156,14 @@ def calculate_sleep_stats(date_str):
 def get_sleep_scores():
     if not pool: return []
     with pool.connection() as conn, conn.cursor() as cs:
-        cs.execute("SELECT date FROM sleep_logs ORDER BY date DESC LIMIT 14")
+        cs.execute("SELECT date FROM sleep_logs ORDER BY date ASC")
         days = [r[0].strftime("%Y-%m-%d") for r in cs.fetchall()]
     
-    results = []
-    for d in reversed(days):
-        dur, dist, qual = calculate_sleep_stats(d)
-        results.append(SleepScore(date=d, duration=dur, disturbance=dist, quality=qual))
-    return results
+        results = []
+        for d in days:
+            dur, dist, qual = calculate_sleep_stats(d, cs)
+            results.append(SleepScore(date=d, duration=dur, disturbance=dist, quality=qual))
+        return results
 
 @app.get("/disturbance-timeline/{date}", response_model=List[DisturbanceData])
 def get_disturbance_timeline(date: str):
@@ -189,14 +182,24 @@ def get_disturbance_timeline(date: str):
         query = """
             SELECT 
                 bucket,
-                AVG(noise) as noise,
-                AVG(vib) as vib,
-                AVG(light) as light
+                AVG(noise)    as noise,
+                AVG(vib)      as vib,
+                AVG(light)    as light,
+                AVG(pm25)     as pm25,
+                AVG(pm10)     as pm10,
+                AVG(humidity) as humidity
             FROM (
-                SELECT FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(created_at) / 300) * 300) as bucket, noise_count as noise, vibration_count as vib, 0 as light
+                SELECT FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(created_at) / 300) * 300) as bucket,
+                       noise_count as noise, vibration_count as vib,
+                       0 as light, 0 as pm25, 0 as pm10, 0 as humidity
                 FROM disturbance_data WHERE created_at BETWEEN %s AND %s
                 UNION ALL
-                SELECT FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(created_at) / 300) * 300) as bucket, 0 as noise, 0 as vib, light as light
+                SELECT FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(created_at) / 300) * 300) as bucket,
+                       0 as noise, 0 as vib,
+                       light as light,
+                       COALESCE(pm2_5, 0) as pm25,
+                       COALESCE(pm10, 0)  as pm10,
+                       COALESCE(humidity, 0) as humidity
                 FROM sensor_readings WHERE created_at BETWEEN %s AND %s
             ) combined
             GROUP BY bucket
@@ -206,17 +209,19 @@ def get_disturbance_timeline(date: str):
         rows = cs.fetchall()
         
     return [DisturbanceData(
-        time=t.strftime("%H:%M") if hasattr(t, 'strftime') else str(t)[11:16], 
-        noise=int(n or 0), 
-        vibration=int(v or 0), 
-        light=int(l or 0)
-    ) for t, n, v, l in rows]
+        time=t.strftime("%H:%M") if hasattr(t, 'strftime') else str(t)[11:16],
+        noise=int(n or 0),
+        vibration=int(v or 0),
+        light=int(l or 0),
+        pm25=round(float(pm25 or 0), 2),
+        pm10=round(float(pm10 or 0), 2),
+        humidity=round(float(hum or 0), 1),
+    ) for t, n, v, l, pm25, pm10, hum in rows]
 
 @app.get("/mood-correlation", response_model=List[MoodCorrelation])
 def get_mood_correlation():
     if not pool:
-        # Fallback
-        return [MoodCorrelation(date=datetime.now().strftime("%Y-%m-%d"), sleep_quality=85, mood_score=8)]
+        return []
 
     with pool.connection() as conn, conn.cursor() as cs:
         # Join sleep_logs and mood_data (or just use sleep_logs if it has both)
@@ -227,16 +232,16 @@ def get_mood_correlation():
         """)
         rows = cs.fetchall()
         
-    data = []
-    for d, dur, mood in rows:
-        # Re-calculate quality for each date
-        _, _, qual = calculate_sleep_stats(d.strftime("%Y-%m-%d"))
-        data.append(MoodCorrelation(
-            date=d.strftime("%Y-%m-%d"), 
-            sleep_quality=qual, 
-            mood_score=mood or 0
-        ))
-    return data
+        data = []
+        for d, dur, mood in rows:
+            # Re-calculate quality for each date
+            _, _, qual = calculate_sleep_stats(d.strftime("%Y-%m-%d"), cs)
+            data.append(MoodCorrelation(
+                date=d.strftime("%Y-%m-%d"), 
+                sleep_quality=qual, 
+                mood_score=mood or 0
+            ))
+        return data
 
 @app.get("/weekly-summary", response_model=WeeklySummary)
 def get_weekly_summary():
@@ -276,15 +281,12 @@ def get_environment_impact():
         """)
         logs = cs.fetchall()
         
-    data = []
-    for d, dur, mood in reversed(logs):
-        # Calculate scores for that day
-        _, _, qual = calculate_sleep_stats(d.strftime("%Y-%m-%d"))
-        
-        # Get sensor averages for this day's sleep window
-        # (Assuming the window is around the sleep_log bedtime/waketime)
-        # For simplicity in this endpoint:
-        with pool.connection() as conn, conn.cursor() as cs:
+        data = []
+        for d, dur, mood in reversed(logs):
+            # Calculate scores for that day (reuse the current connection pool/cursor)
+            _, _, qual = calculate_sleep_stats(d.strftime("%Y-%m-%d"), cs)
+            
+            # Use a fresh cursor but same connection if needed, though cs works fine
             cs.execute("SELECT AVG(pm2_5), AVG(temperature) FROM sensor_readings WHERE DATE(created_at) = %s", [d])
             avg_pm, avg_temp = cs.fetchone()
             
@@ -298,16 +300,10 @@ def get_environment_impact():
 @app.get("/model-comparison", response_model=List[ModelMetric])
 def get_model_comparison():
     if not pool:
-        # Fallback to dummy
-        return [
-            ModelMetric(model_name="KNN", mae=0.85, rmse=1.21),
-            ModelMetric(model_name="Decision Tree", mae=0.78, rmse=1.12),
-            ModelMetric(model_name="XGBoost", mae=0.62, rmse=0.85),
-            ModelMetric(model_name="LSTM / GRU", mae=0.65, rmse=0.91),
-        ]
+        return []
     
     with pool.connection() as conn, conn.cursor() as cs:
-        cs.execute("SELECT model_name, mae, rmse FROM model_metrics")
+        cs.execute("SELECT model_name, mae, rmse FROM model_metrics ORDER BY mae ASC")
         rows = cs.fetchall()
         
     if not rows:
@@ -322,11 +318,7 @@ def get_model_comparison():
 @app.get("/feature-importance", response_model=List[FeatureImportance])
 def get_feature_importance():
     if not pool:
-        # Fallback
-        return [
-            FeatureImportance(feature="Noise Peaks", importance=0.35),
-            FeatureImportance(feature="Light Duration", importance=0.25),
-        ]
+        return []
     
     with pool.connection() as conn, conn.cursor() as cs:
         cs.execute("SELECT feature_name, importance_score FROM feature_importance ORDER BY importance_score DESC")
@@ -335,7 +327,7 @@ def get_feature_importance():
     if not rows:
         return []
 
-    return [FeatureImportance(feature=n, importance=round(s, 2)) for n, s in rows]
+    return [FeatureImportance(feature=n, importance=round(s, 4)) for n, s in rows]
 
 @app.get("/api/external-data", response_model=ExternalDataResponse)
 def get_external_data():

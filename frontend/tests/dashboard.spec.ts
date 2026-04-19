@@ -2,37 +2,30 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard Page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/dashboard');
   });
 
-  test('should display the main title and welcome message', async ({ page }) => {
+  test('should display the main title', async ({ page }) => {
     await expect(page.locator('h1')).toContainText('Sleep Overview');
-    await expect(page.locator('p')).toContainText("Welcome back! Here's your sleep analysis for this week.");
   });
 
   test('should render the three core metric cards', async ({ page }) => {
-    // Quality Score Card
-    const qualityCard = page.locator('div:has-text("Sleep Quality Score")').first();
-    await expect(qualityCard).toBeVisible();
-
-    // Disturbance Card
-    const disturbanceCard = page.locator('div:has-text("Disturbance Level")').first();
-    await expect(disturbanceCard).toBeVisible();
-
-    // Duration Card
-    const durationCard = page.locator('div:has-text("Total Sleep Duration")').first();
-    await expect(durationCard).toBeVisible();
+    await expect(page.locator('text=Sleep Quality Score')).toBeVisible();
+    await expect(page.locator('text=Disturbance Score')).toBeVisible();
+    await expect(page.locator('text=Total Sleep Duration')).toBeVisible();
   });
 
-  test('should render the trend chart', async ({ page }) => {
-    // Recharts container
-    const chartContainer = page.locator('.recharts-responsive-container');
-    await expect(chartContainer).toBeVisible();
+  test('should render at least one recharts container', async ({ page }) => {
+    const chart = page.locator('.recharts-responsive-container').first();
+    await expect(chart).toBeVisible();
   });
 
-  test('should display recommended action cards', async ({ page }) => {
-    await expect(page.locator('h3:has-text("Recommended Actions")')).toBeVisible();
-    await expect(page.locator('text=Reduce light exposure')).toBeVisible();
-    await expect(page.locator('text=Optimal Temperature')).toBeVisible();
+  test('should show trend chart with correct title', async ({ page }) => {
+    await expect(page.locator('text=Sleep Quality Trend')).toBeVisible();
+  });
+
+  test('should show data summary section', async ({ page }) => {
+    await expect(page.locator('text=Data Summary')).toBeVisible();
+    await expect(page.locator('text=Quality Distribution')).toBeVisible();
   });
 });

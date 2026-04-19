@@ -1,21 +1,6 @@
-import csv
-import pymysql
-from dbutils.pooled_db import PooledDB
-from datetime import datetime, timedelta
-import os
+from db_manager import get_db_pool
 
-try:
-    from config import DB_HOST, DB_USER, DB_PASSWD, DB_NAME
-    pool = PooledDB(creator=pymysql,
-                   host=DB_HOST,
-                   user=DB_USER,
-                   password=DB_PASSWD,
-                   database=DB_NAME,
-                   maxconnections=1,
-                   blocking=True)
-except ImportError:
-    print("Error: config.py not found.")
-    exit(1)
+pool = get_db_pool(max_connections=1)
 
 def parse_time(date_str, time_str):
     """

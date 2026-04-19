@@ -102,12 +102,14 @@ export default function MoodVSleep() {
                     unit="/5" 
                     stroke="#94a3b8" 
                     fontSize={12} 
-                    domain={[0, 5]}
+                    domain={[1, 5]}
+                    ticks={[1,2,3,4,5]}
                   />
-                  <ZAxis type="number" range={[100, 400]} />
+                  <ZAxis type="number" range={[80, 300]} />
                   <Tooltip 
                     cursor={{ strokeDasharray: '3 3' }} 
                     contentStyle={{ backgroundColor: "#0f172a", borderRadius: "16px", border: "1px solid #ffffff20" }} 
+                    formatter={(v: any, name: string) => [v, name]}
                   />
                   <Scatter name="Days" data={data} fill="#8b5cf6">
                     {data.map((entry, index) => (

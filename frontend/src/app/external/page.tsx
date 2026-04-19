@@ -50,9 +50,28 @@ export default function ExternalInsights() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
+
+  // AQI category derived from real value
+  function aqiLabel(aqi: number): { text: string; color: string } {
+    if (aqi <= 50)  return { text: "Good. Ideal for ventilation.", color: "emerald" };
+    if (aqi <= 100) return { text: "Moderate. Sensitive groups should limit outdoor activity.", color: "amber" };
+    if (aqi <= 150) return { text: "Unhealthy for sensitive groups. Keep windows closed.", color: "orange" };
+    if (aqi <= 200) return { text: "Unhealthy. Avoid extended outdoor exposure.", color: "rose" };
+    return { text: "Very Unhealthy. Stay indoors.", color: "red" };
+  }
+
+  // Compute daylight hours from actual sunrise/sunset strings (HH:MM)
+  function daylightDuration(sunrise: string, sunset: string): string {
+    const [sh, sm] = sunrise.split(":").map(Number);
+    const [eh, em] = sunset.split(":").map(Number);
+    const mins = (eh * 60 + em) - (sh * 60 + sm);
+    return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+  }
+
+  const illuminationPct = data?.moon?.illumination
+    ? (data.moon.illumination < 1 ? Math.round(data.moon.illumination * 100) : Math.round(data.moon.illumination))
+    : null;
 
   return (
     <div className="space-y-8 pb-12">
@@ -146,9 +165,14 @@ export default function ExternalInsights() {
                   </div>
                   <div className="text-2xl font-bold text-white">{data?.aqi?.pm25 ?? "--"} <span className="text-sm font-normal text-slate-500">µg/m³</span></div>
                 </div>
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                  <p className="text-xs text-emerald-400 py-1">Overall air quality is Good. Ideal window for room ventilation.</p>
-                </div>
+                {data?.aqi && (() => {
+                  const { text, color } = aqiLabel(data.aqi.aqi);
+                  return (
+                    <div className={`p-3 rounded-xl bg-${color}-500/10 border border-${color}-500/20`}>
+                      <p className={`text-xs text-${color}-400 py-1`}>{text}</p>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div className="mt-6 text-xs text-slate-500 italic">
@@ -181,7 +205,11 @@ export default function ExternalInsights() {
 
               <div className="flex justify-between items-center text-sm px-2">
                 <span className="text-slate-400">Daylight Duration:</span>
-                <span className="text-white font-medium">11h 42m</span>
+                <span className="text-white font-medium">
+                  {data?.sun?.sunrise && data?.sun?.sunset
+                    ? daylightDuration(data.sun.sunrise, data.sun.sunset)
+                    : "--"}
+                </span>
               </div>
             </div>
             <div className="mt-6 text-xs text-slate-500 italic">
@@ -201,7 +229,7 @@ export default function ExternalInsights() {
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Illumination</div>
-                  <div className="text-2xl font-bold text-white">{data?.moon?.illumination ?? "--"}%</div>
+                  <div className="text-2xl font-bold text-white">{illuminationPct ?? "--"}%</div>
                 </div>
                 <div>
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Zodiac Sign</div>

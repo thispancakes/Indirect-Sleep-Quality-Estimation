@@ -1,26 +1,14 @@
-import pymysql
-import pandas as pd
 import numpy as np
-from dbutils.pooled_db import PooledDB
-from sklearn.model_selection import train_test_split
+import pandas as pd
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.model_selection import LeaveOneOut
 import xgboost as xgb
-from datetime import datetime, timedelta
+from db_manager import get_db_pool
 
-try:
-    from config import DB_HOST, DB_USER, DB_PASSWD, DB_NAME
-    pool = PooledDB(creator=pymysql,
-                   host=DB_HOST,
-                   user=DB_USER,
-                   password=DB_PASSWD,
-                   database=DB_NAME,
-                   maxconnections=1,
-                   blocking=True)
-except ImportError:
-    print("Error: config.py not found.")
-    exit(1)
+pool = get_db_pool(max_connections=1)
 
 def get_training_data():
     with pool.connection() as conn:
@@ -30,95 +18,119 @@ def get_training_data():
             return pd.DataFrame()
 
         # Load sensors and disturbances
-        sensors = pd.read_sql("SELECT light, temperature, pm2_5, created_at FROM sensor_readings", conn)
+        sensors = pd.read_sql("SELECT light, temperature, humidity, pm1_0, pm2_5, pm10, created_at FROM sensor_readings", conn)
         disturbances = pd.read_sql("SELECT noise_count, vibration_count, sound_peak, created_at FROM disturbance_data", conn)
 
         # Feature engineering per night
         features = []
         for _, log in logs.iterrows():
             start, end = log['bedtime'], log['wake_time']
-            
-            # Filter sensors for this window
+
+            # Filter sensors for this exact sleep window
             day_sensors = sensors[(sensors['created_at'] >= start) & (sensors['created_at'] <= end)]
             day_dist = disturbances[(disturbances['created_at'] >= start) & (disturbances['created_at'] <= end)]
-            
+
             if day_sensors.empty and day_dist.empty:
                 continue
 
             feat = {
-                'duration': log['duration'],
-                'avg_light': day_sensors['light'].mean() if not day_sensors.empty else 0,
-                'avg_temp': day_sensors['temperature'].mean() if not day_sensors.empty else 24,
-                'avg_pm25': day_sensors['pm2_5'].mean() if not day_sensors.empty else 0,
-                'noise_peaks': day_dist['noise_count'].sum() if not day_dist.empty else 0,
-                'vibration_spikes': day_dist['vibration_count'].sum() if not day_dist.empty else 0,
-                'sound_peak': day_dist['sound_peak'].max() if not day_dist.empty else 0,
-                'target': log['mood_score'] * 10 # Scale mood to 0-100 for "Sleep Quality" proxy
+                'duration':          log['duration'],
+                'avg_light':         day_sensors['light'].mean()        if not day_sensors.empty else 0,
+                'avg_temp':          day_sensors['temperature'].mean()  if not day_sensors.empty else 0,
+                'avg_humidity':      day_sensors['humidity'].mean()     if not day_sensors.empty else 0,
+                'avg_pm1':           day_sensors['pm1_0'].mean()        if not day_sensors.empty else 0,
+                'avg_pm25':          day_sensors['pm2_5'].mean()        if not day_sensors.empty else 0,
+                'avg_pm10':          day_sensors['pm10'].mean()         if not day_sensors.empty else 0,
+                'noise_peaks':       day_dist['noise_count'].sum()      if not day_dist.empty else 0,
+                'vibration_spikes':  day_dist['vibration_count'].sum()  if not day_dist.empty else 0,
+                'sound_peak':        day_dist['sound_peak'].max()       if not day_dist.empty else 0,
+                # Target is the real 1-5 mood score — no scaling
+                'target':            int(log['mood_score'])
             }
             features.append(feat)
-        
+
         return pd.DataFrame(features)
 
 def train_and_save():
     df = get_training_data()
-    
-    if df.empty or len(df) < 3:
-        print("Not enough real data to train models. Please collect at least 3 days of logs + sensors.")
+
+    if df.empty or len(df) < 4:
+        print("Not enough real data to train models (need ≥4 nights with sensor readings).")
         return
+
+    print(f"Training on {len(df)} real nights. Target range: {df['target'].min()}–{df['target'].max()} (mood 1-5)")
 
     X = df.drop(columns=['target'])
     y = df['target']
 
-    # Simple split (or skip split if data is very small)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42) if len(df) > 5 else (X, X, y, y)
+    # Use Leave-One-Out CV — robust for small datasets (15 nights)
+    loo = LeaveOneOut()
+
+    models = {
+        'KNN':           KNeighborsRegressor(n_neighbors=min(3, len(X) - 1)),
+        'Decision Tree': DecisionTreeRegressor(max_depth=3, random_state=42),
+        'Random Forest': RandomForestRegressor(n_estimators=100, max_depth=3, random_state=42),
+        'XGBoost':       xgb.XGBRegressor(objective='reg:squarederror', n_estimators=50,
+                                           max_depth=3, learning_rate=0.1, random_state=42,
+                                           verbosity=0),
+    }
 
     results = []
-    
-    # 1. KNN
-    knn = KNeighborsRegressor(n_neighbors=min(3, len(X_train)))
-    knn.fit(X_train, y_train)
-    p_knn = knn.predict(X_test)
-    results.append(('KNN', mean_absolute_error(y_test, p_knn), np.sqrt(mean_squared_error(y_test, p_knn))))
+    for model_name, model in models.items():
+        y_true, y_pred = [], []
+        for train_idx, test_idx in loo.split(X):
+            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+            model.fit(X_train, y_train)
+            y_pred.append(float(model.predict(X_test)[0]))
+            y_true.append(float(y_test.iloc[0]))
 
-    # 2. Decision Tree
-    dt = DecisionTreeRegressor(max_depth=5)
-    dt.fit(X_train, y_train)
-    p_dt = dt.predict(X_test)
-    results.append(('Decision Tree', mean_absolute_error(y_test, p_dt), np.sqrt(mean_squared_error(y_test, p_dt))))
+        mae  = mean_absolute_error(y_true, y_pred)
+        rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+        results.append((model_name, mae, rmse))
+        print(f"  {model_name}: MAE={mae:.4f}  RMSE={rmse:.4f}")
 
-    # 3. XGBoost
-    model_xgb = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=50)
-    model_xgb.fit(X_train, y_train)
-    p_xgb = model_xgb.predict(X_test)
-    results.append(('XGBoost', mean_absolute_error(y_test, p_xgb), np.sqrt(mean_squared_error(y_test, p_xgb))))
-
-    # Mock LSTM entry for comparison
-    results.append(('LSTM / GRU', results[-1][1] * 1.1, results[-1][2] * 1.1))
+    # Fit XGBoost on all data for feature importance
+    xgb_model = models['XGBoost']
+    xgb_model.fit(X, y)
 
     # Save Metrics
     with pool.connection() as conn, conn.cursor() as cs:
+        # Clear old entries so a fresh run always reflects the latest
+        cs.execute("DELETE FROM model_metrics")
         for name, mae, rmse in results:
             cs.execute("""
-                INSERT INTO model_metrics (model_name, mae, rmse) 
+                INSERT INTO model_metrics (model_name, mae, rmse)
                 VALUES (%s, %s, %s)
-                ON DUPLICATE KEY UPDATE mae=VALUES(mae), rmse=VALUES(rmse)
             """, (name, float(mae), float(rmse)))
-        
-        # Save Feature Importance (XGBoost)
-        importance = model_xgb.feature_importances_
-        feature_names = X.columns
-        for name, score in zip(feature_names, importance):
-            # Map machine names to readable names
-            readable = name.replace('_', ' ').title()
+
+        # Save Feature Importance (XGBoost on full data)
+        cs.execute("DELETE FROM feature_importance")
+        importance = xgb_model.feature_importances_
+        readable_names = {
+            'duration':         'Duration',
+            'avg_light':        'Avg Light',
+            'avg_temp':         'Avg Temp',
+            'avg_humidity':     'Avg Humidity',
+            'avg_pm1':          'Avg PM1.0',
+            'avg_pm25':         'Avg PM2.5',
+            'avg_pm10':         'Avg PM10',
+            'noise_peaks':      'Noise Peaks',
+            'vibration_spikes': 'Vibration Spikes',
+            'sound_peak':       'Sound Peak',
+        }
+        for col, score in zip(X.columns, importance):
+            name = readable_names.get(col, col.replace('_', ' ').title())
             cs.execute("""
                 INSERT INTO feature_importance (feature_name, importance_score)
                 VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE importance_score=VALUES(importance_score)
-            """, (readable, float(score)))
-        
+            """, (name, float(score)))
+
         conn.commit()
 
-    print("Successfully calculated real ML metrics and feature importance.")
+    best = min(results, key=lambda r: r[1])
+    print(f"\nBest model: {best[0]} (MAE={best[1]:.4f})")
+    print("Metrics saved to database.")
 
 if __name__ == "__main__":
     train_and_save()
