@@ -1,10 +1,26 @@
 # 🌙 Indirect Sleep Quality Estimation
 
+**Project Title**: Indirect Sleep Quality Estimation Using Environmental Disturbance Sensors
+**Affiliation**: Department of Computer Engineering, Faculty of Engineering, Kasetsart University
+
+
 A data analytics web application estimating sleep quality using environmental disturbance sensors (Noise, Vibration, Light, PM2.5). The system integrates real-world mood feedback from Google Forms with high-frequency sensor data and applies machine learning to identify behavioural patterns.
 
 ---
 
-## 🚀 Features
+## Team Members
+- **Member 1**: Tat Tanprasert 6710545636
+- **Member 2**: Peraya Leangsongchai 6710545776
+- **Affiliation**: Department of Computer Engineering, Faculty of Engineering, Kasetsart University
+<br>[Team Photo](./team_member_photo/)
+---
+
+## 📽️ Presentation
+**Slides**: [Project_slide.pdf](./Project_slide.pdf)
+
+---
+
+## Features
 
 - **Sleep Quality Scoring**: Nightly score (0–100) computed from actual sensor readings during your exact bedtime–wake window.
 - **Google Forms Integration**: Automated ingestion of Bedtime, Wake Time, and 1–5 Mood Score logs via CSV export.
@@ -23,14 +39,14 @@ A data analytics web application estimating sleep quality using environmental di
 |---|---|
 | **Backend API** | FastAPI (Python 3.9+), Uvicorn |
 | **Frontend** | Next.js 16 (App Router), Tailwind CSS v4, Framer Motion, Recharts |
-| **Database** | MySQL (remote host `iot.cpe.ku.ac.th`) via PyMySQL + DBUtils connection pool |
+| **Database** | MySQL 8.0+ (Remote host `iot.cpe.ku.ac.th`) |
 | **ML Engine** | scikit-learn (KNN, Decision Tree), XGBoost, Pandas, NumPy |
 | **External APIs** | OpenWeatherMap, IQAir, Sunrise-Sunset.org, MET Norway (moon) |
 | **Testing** | Playwright (E2E, runs against live dev server) |
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 .
@@ -58,7 +74,7 @@ A data analytics web application estimating sleep quality using environmental di
 
 ---
 
-## 🚦 Getting Started
+## Getting Started
 
 ### 1. Prerequisites
 - Python 3.9+
@@ -103,7 +119,7 @@ npm run dev
 
 ---
 
-## 🧪 Sleep Quality Score Formula
+## Sleep Quality Score Formula
 
 The score (0–100) is computed per night from actual sensor readings within your bedtime–wake window:
 
@@ -120,13 +136,13 @@ Quality = 100 − duration_penalty − light_penalty − pm25_penalty − distur
 
 ---
 
-## 🤖 Machine Learning Pipeline
+## Machine Learning Pipeline
 
 Models are evaluated using **Leave-One-Out cross-validation** (appropriate for the small 15-night dataset). The target variable is your real **1–5 morning mood score** from Google Forms.
 
 | Model | MAE | RMSE |
 |---|---|---|
-| 🏆 XGBoost | 0.34 | 0.55 |
+| XGBoost | 0.34 | 0.55 |
 | Decision Tree | 0.63 | 0.94 |
 | KNN | 0.67 | 0.80 |
 
@@ -134,7 +150,7 @@ Re-run `calculate_metrics.py` any time new log entries are added to update metri
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 
 ```bash
 cd frontend
@@ -146,6 +162,6 @@ Tests cover: page headings, metric card visibility, Recharts rendering, and navi
 
 ---
 
-## ⚖️ License
+## License
 
 Developed for the DAQ module: *"Indirect Sleep Quality Estimation Using Environmental Disturbance Sensors."*
