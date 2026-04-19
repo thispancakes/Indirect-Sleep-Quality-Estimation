@@ -21,14 +21,4 @@ python-dotenv>=1.0.0
 
 # Security (required by PyMySQL with SSL)
 cryptography>=42.0.0
-=======
-pymysql
-dbutils
-fastapi
-uvicorn
-pydantic
-python-multipart
-cryptography
-httpx
-dotenv
->>>>>>> 37597da788f6a4b33f00ae304d34b442297b837b
+
