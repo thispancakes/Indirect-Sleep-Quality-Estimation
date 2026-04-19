@@ -4,6 +4,7 @@ from external_services import sync_all_external_data
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
+from math import log
 
 pool = get_db_pool(max_connections=2)
 
@@ -34,7 +35,7 @@ class DisturbanceData(BaseModel):
     time: str
     noise: int
     vibration: int
-    light: int
+    light: float
     pm25: float
     pm10: float
     humidity: float
@@ -152,6 +153,16 @@ def _perform_stats_query(cs, date_str):
         
         return round(duration, 1), round(dist_pen, 1), round(max(0, min(100, quality)), 1)
 
+def adc_analog_to_lux(rows: list, index: int):
+    for row in rows:
+        light = row[index] # raw analog reading, approximately 1000 times less than voltage reading
+        Va = float(light / (1000 * 5)) # 5 is picked approximate number cause sensor is different from kidbright one
+        Rldr = Va * (33000 / (3.3 - Va))
+        Rr = log((Rldr/1000), 10)
+        Ll = ((Rr-3)/(-1-3))*(4-(-1)) + -1
+        Lux = 10**Ll
+        row[index] = Lux
+
 @app.get("/sleep-score", response_model=List[SleepScore])
 def get_sleep_scores():
     if not pool: return []
@@ -189,25 +200,28 @@ def get_disturbance_timeline(date: str):
                 AVG(pm10)     as pm10,
                 AVG(humidity) as humidity
             FROM (
-                SELECT FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(created_at) / 300) * 300) as bucket,
-                       noise_count as noise, vibration_count as vib,
-                       0 as light, 0 as pm25, 0 as pm10, 0 as humidity
-                FROM disturbance_data WHERE created_at BETWEEN %s AND %s
-                UNION ALL
-                SELECT FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(created_at) / 300) * 300) as bucket,
-                       0 as noise, 0 as vib,
+                SELECT x.bucket as bucket, noise, vib, light, pm25, pm10, humidity 
+                FROM
+                (SELECT FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(created_at) / 300) * 300) as bucket,
+                       noise_count as noise, vibration_count as vib
+                FROM disturbance_data WHERE created_at BETWEEN %s AND %s) x
+                JOIN
+                (SELECT FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(created_at) / 300) * 300) as bucket,
                        light as light,
                        COALESCE(pm2_5, 0) as pm25,
                        COALESCE(pm10, 0)  as pm10,
                        COALESCE(humidity, 0) as humidity
-                FROM sensor_readings WHERE created_at BETWEEN %s AND %s
+                FROM sensor_readings WHERE created_at BETWEEN %s AND %s) y
+                ON x.bucket = y.bucket
             ) combined
             GROUP BY bucket
             ORDER BY bucket ASC
         """
         cs.execute(query, [start, end, start, end])
-        rows = cs.fetchall()
+        rows = [list(row) for row in cs.fetchall()]
         
+    adc_analog_to_lux(rows, 3) # sensor reading to lux
+
     return [DisturbanceData(
         time=t.strftime("%H:%M") if hasattr(t, 'strftime') else str(t)[11:16],
         noise=int(n or 0),

@@ -47,6 +47,7 @@ export default function NightAnalysis() {
         if (response.ok) {
           const json = await response.json();
           setData(json);
+          // console.log(data);
         } else {
           setData([]);
         }
