@@ -10,7 +10,7 @@ A data analytics web application estimating sleep quality using environmental di
 - **Google Forms Integration**: Automated ingestion of Bedtime, Wake Time, and 1–5 Mood Score logs via CSV export.
 - **Disturbance Tracking**: 5-minute interval breakdown of noise peaks, vibration spikes, and ambient light.
 - **Mood Correlation**: Scatter plot of sleep quality vs. morning mood score (1–5 scale).
-- **ML Model Benchmarking**: 4 models evaluated with **Leave-One-Out CV** on real data — KNN, Decision Tree, Random Forest, XGBoost.
+- **ML Model Benchmarking**: 3 models evaluated with **Leave-One-Out CV** on real data — KNN, Decision Tree, XGBoost.
 - **Feature Importance**: XGBoost analysis showing which sensor (light, noise, PM2.5, etc.) most impacts your specific sleep results.
 - **External Data**: Hourly weather, AQI, sunrise/sunset, and moon phase via external APIs.
 - **Premium UI**: Glassmorphism dark-theme dashboard in Next.js with Recharts and Framer Motion.
@@ -24,7 +24,7 @@ A data analytics web application estimating sleep quality using environmental di
 | **Backend API** | FastAPI (Python 3.9+), Uvicorn |
 | **Frontend** | Next.js 16 (App Router), Tailwind CSS v4, Framer Motion, Recharts |
 | **Database** | MySQL (remote host `iot.cpe.ku.ac.th`) via PyMySQL + DBUtils connection pool |
-| **ML Engine** | scikit-learn (KNN, Decision Tree, Random Forest), XGBoost, Pandas, NumPy |
+| **ML Engine** | scikit-learn (KNN, Decision Tree), XGBoost, Pandas, NumPy |
 | **External APIs** | OpenWeatherMap, IQAir, Sunrise-Sunset.org, MET Norway (moon) |
 | **Testing** | Playwright (E2E, runs against live dev server) |
 
@@ -126,8 +126,7 @@ Models are evaluated using **Leave-One-Out cross-validation** (appropriate for t
 
 | Model | MAE | RMSE |
 |---|---|---|
-| 🏆 Random Forest | 0.33 | 0.51 |
-| XGBoost | 0.34 | 0.55 |
+| 🏆 XGBoost | 0.34 | 0.55 |
 | Decision Tree | 0.63 | 0.94 |
 | KNN | 0.67 | 0.80 |
 

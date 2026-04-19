@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.model_selection import LeaveOneOut
 import xgboost as xgb
@@ -69,7 +68,6 @@ def train_and_save():
     models = {
         'KNN':           KNeighborsRegressor(n_neighbors=min(3, len(X) - 1)),
         'Decision Tree': DecisionTreeRegressor(max_depth=3, random_state=42),
-        'Random Forest': RandomForestRegressor(n_estimators=100, max_depth=3, random_state=42),
         'XGBoost':       xgb.XGBRegressor(objective='reg:squarederror', n_estimators=50,
                                            max_depth=3, learning_rate=0.1, random_state=42,
                                            verbosity=0),
